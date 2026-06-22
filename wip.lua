@@ -1,6 +1,16 @@
 local cloneref = cloneref or function(...) return ... end
 local getgenv = getgenv or function(...) return _G end
 
+
+local TweenService      = cloneref(game:GetService("TweenService"))
+local UserInputService  = cloneref(game:GetService("UserInputService"))
+local TextService       = cloneref(game:GetService("TextService"))
+local GuiService        = cloneref(game:GetService("GuiService"))
+local RunService        = cloneref(game:GetService("RunService"))
+local HttpService       = cloneref(game:GetService("HttpService"))
+local DateTime          = DateTime
+
+
 local Library = {
 	Pallet = {
 		Main = Color3.fromRGB(31, 31, 31),
@@ -16,18 +26,13 @@ local Library = {
 	Tooltip = nil,
 	TextBounds = Instance.new("GetTextBoundsParams"),
 	OnTopOfCoreBlur = getthreadidentity and getthreadidentity() == 8 or setthreadidentity and setthreadidentity(8) and true or false,
-	GuiHolder = (gethui and gethui()) or cloneref(game:GetService("CoreGui")) or cloneref(game:GetService("Players")).LocalPlayer.PlayerGui
+	GuiHolder = (gethui and gethui()) or cloneref(game:GetService("CoreGui")) or cloneref(game:GetService("Players")).LocalPlayer.PlayerGui,
+	IsDragging = false,
+	IsInTextBox = UserInputService:GetFocusedTextBox() or false,
 }
 
 Library.TextBounds.Width = math.huge
 
-local TweenService      = cloneref(game:GetService("TweenService"))
-local UserInputService   = cloneref(game:GetService("UserInputService"))
-local TextService       = cloneref(game:GetService("TextService"))
-local GuiService        = cloneref(game:GetService("GuiService"))
-local RunService        = cloneref(game:GetService("RunService"))
-local HttpService       = cloneref(game:GetService("HttpService"))
-local DateTime          = DateTime
 
 
 
@@ -80,6 +85,51 @@ local function Make(ClassName, PropertyTable, Children) : Instance
 	end
 
 	return Inst
+end
+
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local function MakeDraggable(Gui, FrameThatMoves)
+	FrameThatMoves = FrameThatMoves or Gui
+
+	local dragging = false
+	local dragInput
+	local startPos
+	local startMousePos
+
+	Gui.InputBegan:Connect(function(inputObj)
+		if inputObj.UserInputType == Enum.UserInputType.MouseButton1 or inputObj.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			startPos = FrameThatMoves.Position
+			startMousePos = inputObj.Position
+
+			inputObj.Changed:Connect(function()
+				if inputObj.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	Gui.InputChanged:Connect(function(inputObj)
+		if inputObj.UserInputType == Enum.UserInputType.MouseMovement or inputObj.UserInputType == Enum.UserInputType.Touch then
+			dragInput = inputObj
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(inputObj)
+		if dragging and inputObj == dragInput then
+			local delta = inputObj.Position - startMousePos
+
+			FrameThatMoves.Position = UDim2.new(
+				startPos.X.Scale, 
+				startPos.X.Offset + delta.X, 
+				startPos.Y.Scale, 
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
 end
 
 local function GetFontSize(Text, Size, font, width)
@@ -140,6 +190,13 @@ function Library:CreateGui()
 	local function GetTime(): string
 		return tostring(DateTime.now():FormatLocalTime("LT", "en-us"))
 	end
+	
+	local function MakeLines(amount) : string
+		local str = ""
+		for i = 1, amount do
+			str = str .. tostring(i) .. "\n"
+		end
+	end
 
 	local ScreenGui = Make("ScreenGui", {
 		ResetOnSpawn = false,
@@ -150,7 +207,7 @@ function Library:CreateGui()
 	})
 
 	if Library.OnTopOfCoreBlur then ScreenGui.OnTopOfCoreBlur = true end
-	
+
 	Library.Tooltip = Make("TextLabel", {
 		BackgroundColor3 = Library.Pallet.Main,
 		Text = "",
@@ -166,7 +223,7 @@ function Library:CreateGui()
 		MakeBlur(),
 		MakeOutline()
 	})
-	
+
 	local Main = Make("Frame", {
 		Parent = ScreenGui,
 		Name = "Main",
@@ -223,6 +280,26 @@ function Library:CreateGui()
 						Position = UDim2.new(0,4,0,4),
 						ImageColor3 = Library.Pallet.BackgroundText
 					})
+				})
+			}),
+			Make("TextButton", {
+				AutoButtonColor = false,
+				Text = "",
+				Name = "UpdateButton",
+				Size = UDim2.new(0,60,1,-10),
+				Position = UDim2.new(0.5,130,0,5),
+				BackgroundColor3 = Library.Pallet.Blue
+			}, {
+				MakeCorner(),
+				Make("TextLabel", {
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1,-16,1,0),
+					Position = UDim2.new(0,8,0,0),
+					FontFace = Library.Pallet.Font,
+					TextColor3 = Library.Pallet.Text,
+					TextSize = 12,
+					Text = "Update"
+				}, {
 				})
 			}),
 			Make("Frame", {
@@ -286,6 +363,24 @@ function Library:CreateGui()
 					Size = UDim2.new(0,14,0,14),
 					Position = UDim2.new(0,9,0,9)
 				})
+			}),
+			Make("TextButton", {
+				Name = "Close",
+				AutoButtonColor = false,
+				BackgroundTransparency = 1,
+				Size = UDim2.new(0,32,0,32),
+				Position = UDim2.new(1,-32,0,0),
+				Text = ""
+			}, {
+				Make("ImageLabel", {
+					BackgroundTransparency = 1,
+					Rotation = 90,
+					ImageColor3 = Library.Pallet.BackgroundText,
+					ImageTransparency = 0.2,
+					Image = "rbxassetid://113890280335265",
+					Size = UDim2.new(0,14,0,14),
+					Position = UDim2.new(0,9,0,9)
+				})
 			})
 		}),
 		Make("Frame", {
@@ -333,22 +428,42 @@ function Library:CreateGui()
 			BackgroundTransparency = 1
 		}, {
 			Make("Frame", {
-				Name = "ScriptViewer",
+				Name = "ScriptContainer",
 				Size = UDim2.new(0.65,0,1,-32),
-				Position = UDim2.new(0,0,0,32),
+				Position = UDim2.new(0.35,0,0,32),
 				BackgroundColor3 = Library.Pallet.AltMain,
 				BorderSizePixel = 0,
+			}, {
+				Make("ScrollingFrame", {
+					Name = "Viewer",
+					Size = UDim2.new(1,0,1,0),
+					Position = UDim2.new(0,0,0,0),
+					BackgroundTransparency = 1
+				}, {
+					Make("TextLabel", {
+						Name = "Lines",
+						Size = UDim2.new(0,16,1,0),
+						Position = UDim2.new(0,0,0,0),
+						BackgroundTransparency = 1,
+						TextColor3 = Library.Pallet.BackgroundText,
+						FontFace = Library.Pallet.Font,
+						RichText = true,
+						Text = MakeLines(2),
+						TextWrapped = true
+					})	
+				})
 			}),
 			Make("Frame", {
 				Name = "Explorer",
 				Size = UDim2.new(0.35,0,1,-32),
-				Position = UDim2.new(0.65,0,0,32),
+				Position = UDim2.new(0,0,0,32),
 				BackgroundColor3 = Library.Pallet.Main,
 				BorderSizePixel = 0,
 			})
 		}),
 	})
 	
+	MakeDraggable(Main:FindFirstChild("Topbar"), Main)
 
 	task.spawn(function()
 		while true do
